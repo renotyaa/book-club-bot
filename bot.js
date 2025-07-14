@@ -274,3 +274,13 @@ function finishBookVoting(chatId) {
   data.state = BOT_STATES.IDLE;
   data.bookVotes = {}; // Очищаем голоса
 }
+
+process.on('SIGINT', () => {
+  console.log('Бот остановлен вручную');
+  process.exit();
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ Необработанная ошибка:', err);
+  process.exit(1);
+});
