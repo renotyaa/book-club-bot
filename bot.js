@@ -3,8 +3,12 @@ const token = process.env.TELEGRAM_BOT_TOKEN; // Только через пер�
 
 if (!token) {
   console.error('❌ Токен не найден!');
+  console.error('1. Переменную TELEGRAM_BOT_TOKEN в Render')
   process.exit(1);
 }
+
+//экземпляр бота
+const bot = new TelegramBot(token, { polling: true});
 
 // Состояния бота
 const BOT_STATES = {
