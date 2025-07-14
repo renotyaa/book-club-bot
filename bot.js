@@ -1,6 +1,10 @@
 const TelegramBot = require('node-telegram-bot-api');
-const token = '8115443210:AAFwIQEc-sOsWBXTs_X1Y-BoGCaM2V3tBQ4';
-const bot = new TelegramBot(token, { polling: true });
+const token = process.env.TELEGRAM_BOT_TOKEN; // Только через переменные окружения!
+
+if (!token) {
+  console.error('❌ Токен не найден!');
+  process.exit(1);
+}
 
 // Состояния бота
 const BOT_STATES = {
