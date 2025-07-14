@@ -226,11 +226,11 @@ function finishBookVoting(chatId) {
   const data = chatData[chatId];
   if (!data || data.state !== BOT_STATES.BOOK_VOTING) return;
 
-  // Подсчет голосов
+  // Подсчет голосов (исправлено)
   const voteCount = Array(data.suggestedBooks.length).fill(0);
-  Object.values(data.bookVotes).forEach(option => {
-    if (option >= 0 && option < voteCount.length) {
-      voteCount[option]++;
+  Object.values(data.bookVotes).forEach(userVote => {
+    if (userVote !== undefined && userVote >= 0 && userVote < voteCount.length) {
+      voteCount[userVote]++;
     }
   });
 
@@ -246,10 +246,12 @@ function finishBookVoting(chatId) {
 
   const winnerBook = data.suggestedBooks[winnerIndex];
 
-  // Формируем результаты
-  const results = data.suggestedBooks.map((book, index) => 
-    `${index + 1}. ${book} - ${voteCount[index]} голосов`
-  ).join('\n');
+  // Формируем результаты (с правильным склонением)
+  const results = data.suggestedBooks.map((book, index) => {
+    const votes = voteCount[index];
+    const votesText = votes === 1 ? 'голос' : votes === 0 ? 'голосов' : 'голоса';
+    return `${index + 1}. ${book} - ${votes} ${votesText}`;
+  }).join('\n');
 
   // Отправляем результаты
   bot.sendMessage(
@@ -262,6 +264,5 @@ function finishBookVoting(chatId) {
 
   // Сбрасываем состояние
   data.state = BOT_STATES.IDLE;
+  data.bookVotes = {}; // Очищаем голоса
 }
-
-console.log('Бот запущен!');
