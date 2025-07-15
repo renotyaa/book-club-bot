@@ -4,20 +4,35 @@ const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 const axios = require('axios');
 
-// 2. Настройка сервера для Render
+// Настройка сервера для Render
 const app = express();
-const PORT = process.env.PORT || 10000; // Render требует порт 10000
+const PORT = process.env.PORT || 10000;
 
-app.get('/', (req, res) => res.send('Book Club Bot is running!'));
-app.get('/ping', (req, res) => res.send('Pong!'));
+app.get('/', (req, res) => res.send('Bot is running'));
+app.get('/ping', (req, res) => res.send('pong'));
 
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server started on port ${PORT}`);
 });
 
-// 3. Инициализация бота
+// Инициализация бота с обработкой ошибок
 const token = process.env.TELEGRAM_BOT_TOKEN;
-const bot = new TelegramBot(token, { polling: true });
+const botOptions = {
+  polling: {
+    timeout: 10,
+    autoStart: false // Важно! Отключаем автостарт
+  }
+};
+
+const bot = new TelegramBot(token, botOptions);
+
+// Функция для безопасного запуска бота
+const startBot = () => {
+  bot.startPolling().catch(err => {
+    console.error('Polling start error:', err.message);
+    setTimeout(startBot, 5000); // Перезапуск через 5 сек при ошибке
+  });
+};
 
 // 4. Состояния бота
 const botState = {
@@ -247,14 +262,28 @@ function closeBookPoll(chatId) {
     });
 }
 
-// 14. Обработка ошибок
-bot.on('polling_error', console.error);
-bot.on('webhook_error', console.error);
+// Обработчики ошибок
+bot.on('polling_error', (err) => {
+  if (err.code === 409) {
+    console.log('Обнаружен конфликт. Перезапускаем бота...');
+    setTimeout(startBot, 5000);
+  } else {
+    console.error('Polling error:', err);
+  }
+});
 
-// 15. Пинг для Render (чтобы не засыпал)
+bot.on('webhook_error', (err) => {
+  console.error('Webhook error:', err);
+});
+
+// Пинг для Render
 setInterval(() => {
   axios.get(`${process.env.RENDER_EXTERNAL_URL}/ping`)
     .catch(err => console.log('Ping error:', err.message));
-}, 5 * 60 * 1000); // Каждые 5 минут
+}, 5 * 60 * 1000);
 
-console.log('🤖 Бот запущен!');
+process.on('SIGTERM', () => {
+  console.log('Shutting down...');
+  bot.stopPolling();
+  server.close();
+});
