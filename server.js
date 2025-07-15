@@ -1,27 +1,23 @@
 const express = require('express');
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000; // Render использует порт 10000
 
+// Обязательный эндпоинт для проверки
 app.get('/', (req, res) => {
   res.send('Book Club Bot is running!');
 });
 
-// Ping endpoint to keep Render alive
+// Эндпоинт для пингов (чтобы не засыпал)
 app.get('/ping', (req, res) => {
   res.send('Pong!');
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+// Явно указываем 0.0.0.0 для Render
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server started on port ${PORT}`);
 });
 
-// Ping self every 5 minutes to prevent Render from sleeping
-if (process.env.RENDER_EXTERNAL_URL) {
-  const axios = require('axios');
-  setInterval(() => {
-    axios.get(`${process.env.RENDER_EXTERNAL_URL}/ping`)
-      .then(() => console.log('Pinged self to stay awake'))
-      .catch(err => console.error('Error pinging self:', err.message));
-  }, 5 * 60 * 1000); // 5 minutes
-}
+// Обработка ошибок
+server.on('error', (err) => {
+  console.error('Server error:', err);
+});
