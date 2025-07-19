@@ -14,7 +14,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server started on port ${PORT}`);
 });
 
-// Инициализация бота с улучшенной обработкой ошибок
+// Инициализация бота
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const bot = new TelegramBot(token, {
   polling: {
@@ -33,9 +33,10 @@ const botState = {
   bookPoll: null,
   timers: {},
   userSuggestions: {},
+  rerunGenres: null
 };
 
-// Жанры с эмодзи
+// Жанры
 const genres = [
   '🚀 Фантастика',
   '🧙 Фэнтези',
@@ -73,7 +74,7 @@ const startBot = () => {
     });
 };
 
-// Обработка команды /start (обновленное сообщение)
+// Обработка команды /start
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   
@@ -103,8 +104,8 @@ bot.on('callback_query', (query) => {
     case 'start_guide':
       bot.sendMessage(chatId, 
         '1. Используйте /selectgenre в группе\n' +
-        '2. Предложите книгу в личные сообщения боту\n' +
-        '3. Голосуйте за лучший вариант');
+        '2. Предложите книгу в Личные Сообщения боту\n' +
+        '3. Голосуйте за понравившийся вариант');
       break;
       
     case 'show_rules':
@@ -112,17 +113,17 @@ bot.on('callback_query', (query) => {
         '📜 <b>Правила книжного клуба:</b>\n\n' +
         '• Расскажите всем о книжном клубе\n' +
         '• Максимум 2 предложения на человека\n' +
-        '• Формат: "Автор - Название"\n' +
-        '• Запрещены дубликаты книг\n' +
-        '• Время на голосование за жанр: 8 часов\n' +
-        '• Время на голосование за книгу и предложение книг: 24 часа', {
+        '• Формат предложения книги обязательно: "Автор - Название"\n' +
+        '• Наслаждайтесь чтением!\n' +
+        '• Голосование за жанр: 8 часов\n' +
+        '• Голосование за книгу: 24 часа', {
         parse_mode: 'HTML'
       });
       break;
   }
 });
 
-// Команда выбора жанра
+// Команда выбора жанра (сохранены ваши оригинальные тексты)
 bot.onText(/\/selectgenre/, (msg) => {
   const chatId = msg.chat.id;
   
@@ -148,7 +149,7 @@ bot.onText(/\/selectgenre/, (msg) => {
 
     botState.timers.genrePoll = setTimeout(() => {
       closeGenrePoll(chatId);
-    }, 8 * 60 * 60 * 1000);
+    }, 2 * 60 * 1000);
 
   }).catch(err => {
     console.error('Ошибка создания опроса:', err);
@@ -156,7 +157,7 @@ bot.onText(/\/selectgenre/, (msg) => {
   });
 });
 
-// Закрытие опроса жанров (с обработкой ничьи)
+// Обновленная функция closeGenrePoll с исправленной логикой повторного голосования
 function closeGenrePoll(chatId) {
   if (!botState.genrePoll) return;
 
@@ -164,31 +165,37 @@ function closeGenrePoll(chatId) {
   
   bot.stopPoll(botState.genrePoll.chatId, botState.genrePoll.messageId)
     .then(poll => {
-      const options = poll.options.map((opt, index) => ({
+      // Создаем массив с результатами
+      const results = poll.options.map((opt, index) => ({
         genre: genres[index],
         votes: opt.voter_count
-      })).sort((a, b) => b.votes - a.votes);
+      }));
 
-      const maxVotes = options[0].votes;
+      // Находим максимальное количество голосов
+      const maxVotes = Math.max(...results.map(r => r.votes));
       
-      // Проверка на ничью
-      const winners = options.filter(opt => opt.votes === maxVotes);
-      
+      // Фильтруем победителей
+      const winners = results.filter(r => r.votes === maxVotes);
+
       if (maxVotes === 0) {
         bot.sendMessage(chatId, '❌ Никто не проголосовал! Используйте /selectgenre');
         return;
       }
 
+      // Если ничья (несколько победителей)
       if (winners.length > 1) {
-        // Ничья - запускаем новый опрос только между победителями
         const winnerGenres = winners.map(w => w.genre);
+        
+        // Сохраняем оригинальные жанры для повторного голосования
+        botState.rerunGenres = winnerGenres;
+        
         bot.sendMessage(
           chatId,
-          `⚖️ Ничья между жанрами! Повторное голосование:\n` +
-          `${winnerGenres.join(', ')}`
+          `⚖️ Ничья между жанрами: ${winnerGenres.join(', ')}\n` +
+          `Начинаем повторное голосование только между этими жанрами!`
         );
         
-        bot.sendPoll(
+        return bot.sendPoll(
           chatId,
           '📚 Выберите жанр (повторное голосование):',
           winnerGenres,
@@ -201,34 +208,64 @@ function closeGenrePoll(chatId) {
           botState.genrePoll = {
             id: newPoll.poll.id,
             chatId: chatId,
-            messageId: newPoll.message_id
+            messageId: newPoll.message_id,
+            isRerun: true // Помечаем как повторное голосование
           };
           
           botState.timers.genrePoll = setTimeout(() => {
             closeGenrePoll(chatId);
-          }, 60 * 60 * 1000); // 1 час для повторного голосования
+          }, 2 * 60 * 1000);
         });
-        
-        return;
       }
 
-      // Один победитель
+      // Если один победитель
+      const winner = winners[0];
       bot.sendMessage(
         chatId,
-        `🎉 Выбран жанр: <b>${options[0].genre}</b>!\n\n` +
+        `🎉 Выбран жанр: <b>${winner.genre}</b>!\n\n` +
         'Теперь присылайте книги в ЛС бота в формате:\n' +
         '<code>Автор - Название</code>\n\n' +
         '⏳ У вас есть 24 часа!', {
         parse_mode: 'HTML'
       });
 
-      startBookCollection(chatId, options[0].genre);
+      startBookCollection(chatId, winner.genre);
+    })
+    .catch(err => {
+      console.error('Ошибка завершения опроса:', err);
+      bot.sendMessage(chatId, '❌ Ошибка при обработке результатов');
     })
     .finally(() => {
-      if (botState.genrePoll && botState.genrePoll.chatId === chatId) {
+      if (!botState.genrePoll?.isRerun) {
         botState.genrePoll = null;
       }
     });
+}
+
+// Функция для обработки повторного голосования
+function handleRerunVoting(chatId, poll) {
+  const results = poll.options.map((opt, index) => ({
+    genre: botState.rerunGenres[index],
+    votes: opt.voter_count
+  }));
+
+  const maxVotes = Math.max(...results.map(r => r.votes));
+  const winners = results.filter(r => r.votes === maxVotes);
+
+  // В повторном голосовании выбираем первый вариант при ничье
+  const winner = winners[0];
+  
+  bot.sendMessage(
+    chatId,
+    `🎉 По результатам повторного голосования выбран жанр: <b>${winner.genre}</b>!\n\n` +
+    'Теперь присылайте книги в Личные Сообщения боту в формате:\n' +
+    '<code>Автор - Название</code>\n\n' +
+    '⏳ У вас есть 24 часа!', {
+    parse_mode: 'HTML'
+  });
+
+  startBookCollection(chatId, winner.genre);
+  delete botState.rerunGenres;
 }
 
 // Сбор предложений книг
@@ -242,7 +279,7 @@ function startBookCollection(chatId, genre) {
 
   botState.timers.bookCollection = setTimeout(() => {
     closeBookCollection(chatId);
-  }, 24 * 60 * 60 * 1000);
+  }, 2 * 60 * 1000);
 }
 
 // Обработка предложений книг (с проверкой дубликатов)
@@ -346,7 +383,7 @@ function closeBookCollection(chatId) {
 
     botState.timers.bookPoll = setTimeout(() => {
       closeBookPoll(chatId);
-    }, 24 * 60 * 60 * 1000);
+    }, 2 * 60 * 1000);
 
   }).catch(err => {
     console.error('Ошибка создания опроса:', err);
@@ -405,7 +442,7 @@ function closeBookPoll(chatId) {
           
           botState.timers.bookPoll = setTimeout(() => {
             closeBookPoll(chatId);
-          }, 60 * 60 * 1000); // 1 час для повторного голосования
+          }, 2 * 60 * 1000);
         });
         
         return;
@@ -417,7 +454,7 @@ function closeBookPoll(chatId) {
         `🏆 <b>Победитель голосования:</b>\n\n` +
         `<i>${results[0].book}</i>\n\n` +
         `Набрано голосов: <b>${results[0].votes}</b>\n\n` +
-        `Следующее голосование через месяц! Приятного приключения в мир Книги!`, {
+        `Следующее голосование через месяц! Приятного приключения в мир книги!`, {
         parse_mode: 'HTML'
       });
     })
