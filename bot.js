@@ -149,7 +149,7 @@ bot.onText(/\/selectgenre/, (msg) => {
 
     botState.timers.genrePoll = setTimeout(() => {
       closeGenrePoll(chatId);
-    }, 2 * 60 * 1000);
+    }, 8 * 60 * 60 * 1000);
 
   }).catch(err => {
     console.error('Ошибка создания опроса:', err);
@@ -214,7 +214,7 @@ function closeGenrePoll(chatId) {
           
           botState.timers.genrePoll = setTimeout(() => {
             closeGenrePoll(chatId);
-          }, 2 * 60 * 1000);
+          }, 1 * 60 * 60 * 1000);
         });
       }
 
@@ -279,7 +279,7 @@ function startBookCollection(chatId, genre) {
 
   botState.timers.bookCollection = setTimeout(() => {
     closeBookCollection(chatId);
-  }, 2 * 60 * 1000);
+  }, 24 * 60 * 60 * 1000);
 }
 
 // Обработка предложений книг (с проверкой дубликатов)
@@ -383,7 +383,7 @@ function closeBookCollection(chatId) {
 
     botState.timers.bookPoll = setTimeout(() => {
       closeBookPoll(chatId);
-    }, 2 * 60 * 1000);
+    }, 24 * 60 * 60 * 1000);
 
   }).catch(err => {
     console.error('Ошибка создания опроса:', err);
@@ -442,7 +442,7 @@ function closeBookPoll(chatId) {
           
           botState.timers.bookPoll = setTimeout(() => {
             closeBookPoll(chatId);
-          }, 2 * 60 * 1000);
+          }, 1 * 60 * 60 * 1000);
         });
         
         return;
